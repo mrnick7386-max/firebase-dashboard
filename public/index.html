@@ -1,0 +1,318 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Firebase Test Dashboard</title>
+
+<style>
+* { box-sizing:border-box; }
+
+body {
+    margin:0;
+    background:#0b1020;
+    color:#e8ecf5;
+    font-family:Arial,sans-serif;
+}
+
+header {
+    padding:22px;
+    background:#121a30;
+    border-bottom:1px solid #26324b;
+}
+
+.container {
+    max-width:1100px;
+    margin:30px auto;
+    padding:15px;
+}
+
+h1 { font-size:23px; margin:0; }
+
+.muted { color:#94a3b8; font-size:13px; }
+
+.grid {
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+    gap:15px;
+    margin:20px 0;
+}
+
+.card {
+    background:#151e34;
+    border:1px solid #293650;
+    border-radius:12px;
+    padding:20px;
+}
+
+.number {
+    font-size:30px;
+    font-weight:bold;
+    margin-top:10px;
+}
+
+input {
+    width:100%;
+    padding:13px;
+    border-radius:8px;
+    border:1px solid #34435f;
+    background:#0c1427;
+    color:white;
+    margin:8px 0 15px;
+}
+
+button {
+    padding:12px 18px;
+    background:#6366f1;
+    color:white;
+    border:0;
+    border-radius:8px;
+    cursor:pointer;
+    margin:5px 5px 5px 0;
+}
+
+button:disabled {
+    opacity:.5;
+    cursor:not-allowed;
+}
+
+.secondary { background:#334155; }
+
+table {
+    width:100%;
+    border-collapse:collapse;
+    margin-top:15px;
+    font-size:13px;
+}
+
+th,td {
+    padding:13px;
+    text-align:left;
+    border-bottom:1px solid #293650;
+}
+
+th { color:#94a3b8; }
+
+.table-wrap { overflow-x:auto; }
+
+.status {
+    color:#a5b4fc;
+    font-weight:bold;
+}
+
+#message {
+    margin:15px 0;
+    color:#a5b4fc;
+}
+
+.progress {
+    height:8px;
+    background:#293650;
+    border-radius:10px;
+    overflow:hidden;
+    margin-top:12px;
+}
+
+#progressBar {
+    width:0%;
+    height:100%;
+    background:#818cf8;
+    transition:width .2s;
+}
+
+@media(max-width:600px) {
+    .container { margin:10px auto; }
+    th,td { padding:9px; }
+}
+</style>
+</head>
+
+<body>
+
+<header>
+    <h1>Firebase Test Dashboard</h1>
+    <div class="muted">Reward Code Generator · Simulation Mode</div>
+</header>
+
+<div class="container">
+
+    <div class="grid">
+        <div class="card">
+            <div class="muted">Total Generated</div>
+            <div class="number" id="total">0</div>
+        </div>
+
+        <div class="card">
+            <div class="muted">Simulated</div>
+            <div class="number" id="success">0</div>
+        </div>
+
+        <div class="card">
+            <div class="muted">Failed</div>
+            <div class="number" id="failed">0</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Authentication</h3>
+
+        <input type="password" id="apiKey"
+            placeholder="Enter dashboard API key">
+
+        <h3>Generate Test Codes</h3>
+
+        <label class="muted">Number of codes</label>
+
+        <input type="number" id="count"
+            value="10" min="1" max="1000">
+
+        <button id="generateBtn" onclick="generateCodes()">
+            Generate Codes
+        </button>
+
+        <button class="secondary" onclick="exportCSV()">
+            Export CSV
+        </button>
+
+        <div id="message">Ready.</div>
+
+        <div class="progress">
+            <div id="progressBar"></div>
+        </div>
+    </div>
+
+    <div class="card" style="margin-top:20px">
+        <h3>Generated Results</h3>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Reward Code</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="results">
+                    <tr>
+                        <td colspan="3">No records generated.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<script>
+let records = [];
+
+async function generateCodes() {
+    const btn = document.getElementById("generateBtn");
+    const count = Number(document.getElementById("count").value);
+    const key = document.getElementById("apiKey").value;
+
+    if (!key) {
+        alert("Enter API key");
+        return;
+    }
+
+    if (!Number.isInteger(count) || count < 1 || count > 1000) {
+        alert("Enter a count between 1 and 1000");
+        return;
+    }
+
+    btn.disabled = true;
+    records = [];
+
+    document.getElementById("message").textContent =
+        "Generating test codes...";
+
+    document.getElementById("progressBar").style.width = "0%";
+
+    try {
+        const response = await fetch("/api/generate", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-API-Key": key
+            },
+            body: JSON.stringify({count})
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || "Request failed");
+        }
+
+        records = data.results;
+
+        const tbody = document.getElementById("results");
+        tbody.innerHTML = "";
+
+        records.forEach((item, index) => {
+            const tr = document.createElement("tr");
+
+            [item.number, item.code, item.status].forEach(value => {
+                const td = document.createElement("td");
+                td.textContent = value;
+                tr.appendChild(td);
+            });
+
+            tbody.appendChild(tr);
+
+            document.getElementById("progressBar").style.width =
+                ((index + 1) / count * 100) + "%";
+        });
+
+        document.getElementById("total").textContent = records.length;
+        document.getElementById("success").textContent = records.length;
+        document.getElementById("failed").textContent = "0";
+
+        document.getElementById("message").textContent =
+            "Completed: " + records.length + " test codes generated.";
+
+    } catch (error) {
+        document.getElementById("message").textContent =
+            "Error: " + error.message;
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function exportCSV() {
+    if (!records.length) {
+        alert("Generate records first");
+        return;
+    }
+
+    const response = await fetch("/api/export", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-API-Key": document.getElementById("apiKey").value
+        },
+        body: JSON.stringify({results: records})
+    });
+
+    if (!response.ok) {
+        alert("Export failed");
+        return;
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "test_codes.csv";
+    a.click();
+
+    URL.revokeObjectURL(url);
+}
+</script>
+
+</body>
+</html>
